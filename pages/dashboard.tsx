@@ -4,7 +4,8 @@ import Head from 'next/head'
 import Link from 'next/link'
 import { useRouter } from 'next/router'
 import { Navbar } from '../components/organisms'
-import { USDCConverter } from '../components/molecules'
+import { USDCConverter, FileUpload } from '../components/molecules'
+import type { UploadedFile } from '../components/molecules'
 import { useUSDCPrice, formatUSD, convertToUSD } from '../hooks/useUSDCPrice'
 
 interface NavItem {
@@ -33,6 +34,15 @@ const Dashboard: NextPage = () => {
 
   const escrowUSD =
     usdcPrice !== null ? formatUSD(convertToUSD(ESCROW_USDC, usdcPrice)) : null
+
+  function handleUploadComplete(entry: UploadedFile) {
+    // TODO: persist the CID on-chain via the TrustFlow milestone release contract
+    console.log('Deliverable pinned to IPFS:', entry.cid, entry.file.name)
+  }
+
+  function handleUploadError(entry: UploadedFile) {
+    console.error('IPFS pin failed for', entry.file.name, entry.error)
+  }
 
   return (
     <>
@@ -179,6 +189,25 @@ const Dashboard: NextPage = () => {
             {/* USDC → USD Converter widget */}
             <div className="mb-8 max-w-md">
               <USDCConverter />
+            </div>
+
+            {/* Deliverables upload — for freelancers to submit work for IPFS pinning */}
+            <div className="mb-8 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-6">
+              <div className="mb-4">
+                <h2 className="text-lg font-bold text-gray-900 dark:text-white">
+                  Submit Deliverables
+                </h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  Upload your work files. Each file is pinned to IPFS and its content identifier (CID) is
+                  recorded on-chain when you release a milestone.
+                </p>
+              </div>
+              <FileUpload
+                onUploadComplete={handleUploadComplete}
+                onUploadError={handleUploadError}
+                multiple={true}
+                maxFileSizeBytes={50 * 1024 * 1024}
+              />
             </div>
 
             {/* Empty state */}
