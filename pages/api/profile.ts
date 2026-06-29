@@ -1,4 +1,7 @@
-import type { NextApiRequest, NextApiResponse } from 'next'
+import { NextResponse } from 'next/server'
+import type { NextRequest } from 'next/server'
+
+export const runtime = 'edge'
 
 export interface ProfileGig {
   id: string
@@ -23,10 +26,6 @@ export interface UserProfileResponse {
   reputation: ProfileReputation
   pastGigs: ProfileGig[]
   source: 'backend' | 'mock'
-}
-
-interface UserProfileError {
-  error: string
 }
 
 interface BackendProfileResponse {
@@ -112,24 +111,19 @@ function normalizeBackendResponse(payload: BackendProfileResponse): UserProfileR
   }
 }
 
-export default async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse<UserProfileResponse | UserProfileError>
-) {
+export default async function handler(req: NextRequest): Promise<NextResponse> {
   if (req.method !== 'GET') {
-    return res.status(405).json({ error: 'Method not allowed' })
+    return NextResponse.json({ error: 'Method not allowed' }, { status: 405 })
   }
 
-  res.setHeader('Cache-Control', 's-maxage=30, stale-while-revalidate=120')
+  const { searchParams } = new URL(req.url)
+  const walletAddress = searchParams.get('walletAddress')?.trim() || 'unknown'
 
-  const walletAddress =
-    typeof req.query.walletAddress === 'string' && req.query.walletAddress.trim().length > 0
-      ? req.query.walletAddress
-      : 'unknown'
+  const cacheHeaders = { 'Cache-Control': 's-maxage=30, stale-while-revalidate=120' }
 
   const backendBaseUrl = process.env.PROFILE_API_BASE_URL
   if (!backendBaseUrl) {
-    return res.status(200).json(getMockProfile(walletAddress))
+    return NextResponse.json(getMockProfile(walletAddress), { headers: cacheHeaders })
   }
 
   try {
@@ -138,18 +132,16 @@ export default async function handler(
 
     const response = await fetch(url.toString(), {
       method: 'GET',
-      headers: {
-        Accept: 'application/json',
-      },
+      headers: { Accept: 'application/json' },
     })
 
     if (!response.ok) {
-      return res.status(200).json(getMockProfile(walletAddress))
+      return NextResponse.json(getMockProfile(walletAddress), { headers: cacheHeaders })
     }
 
     const payload = (await response.json()) as BackendProfileResponse
-    return res.status(200).json(normalizeBackendResponse(payload))
+    return NextResponse.json(normalizeBackendResponse(payload), { headers: cacheHeaders })
   } catch {
-    return res.status(200).json(getMockProfile(walletAddress))
+    return NextResponse.json(getMockProfile(walletAddress), { headers: cacheHeaders })
   }
 }
