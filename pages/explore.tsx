@@ -1,71 +1,110 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { NextPage } from 'next'
 import Head from 'next/head'
 import Link from 'next/link'
+import { useRouter } from 'next/router'
+import { useVirtualizer } from '@tanstack/react-virtual'
 import { Navbar } from '../components/organisms'
-
-interface Gig {
-  id: string
-  title: string
-  description: string
-  budget: string
-  milestones: number
-  category: string
-  duration: string
-  poster: string
-  postedDate: string
-}
-
-const MOCK_GIGS: Gig[] = [
-  {
-    id: '1',
-    title: 'Smart Contract Audit for DeFi Protocol',
-    description: 'Need experienced Solidity auditor to review our lending protocol smart contracts for security vulnerabilities.',
-    budget: '5000 XLM',
-    milestones: 3,
-    category: 'Development',
-    duration: '2 weeks',
-    poster: 'GABC...XYZ',
-    postedDate: '2 days ago',
-  },
-  {
-    id: '2',
-    title: 'UI/UX Design for NFT Marketplace',
-    description: 'Looking for a talented designer to create modern, user-friendly interface for our NFT marketplace on Stellar.',
-    budget: '3000 XLM',
-    milestones: 4,
-    category: 'Design',
-    duration: '3 weeks',
-    poster: 'GDEF...ABC',
-    postedDate: '5 days ago',
-  },
-  {
-    id: '3',
-    title: 'Content Writing for Blockchain Blog',
-    description: 'Seeking technical writer to produce 10 high-quality articles about Stellar blockchain and Soroban smart contracts.',
-    budget: '1500 XLM',
-    milestones: 10,
-    category: 'Writing',
-    duration: '1 month',
-    poster: 'GHIJ...DEF',
-    postedDate: '1 week ago',
-  },
-]
+import { useDebouncedValue, useGigsExplorer } from '../hooks'
+import type { GigSort } from './api/gigs'
 
 const CATEGORIES = ['All', 'Development', 'Design', 'Writing', 'Marketing', 'Other']
-const SORT_OPTIONS = ['Latest', 'Budget: High to Low', 'Budget: Low to High', 'Deadline']
+
+const SORT_OPTIONS: { label: string; value: GigSort }[] = [
+  { label: 'Latest', value: 'latest' },
+  { label: 'Budget: High to Low', value: 'budget_desc' },
+  { label: 'Budget: Low to High', value: 'budget_asc' },
+  { label: 'Deadline', value: 'deadline' },
+]
+
+const LIST_HEIGHT_PX = 720
+const ROW_HEIGHT_PX = 190
+const LOAD_MORE_THRESHOLD = 4
+
+function isGigSort(value: unknown): value is GigSort {
+  return value === 'latest' || value === 'budget_desc' || value === 'budget_asc' || value === 'deadline'
+}
+
+function readQueryParam(value: string | string[] | undefined): string {
+  if (Array.isArray(value)) return value[0] ?? ''
+  return value ?? ''
+}
 
 const Explore: NextPage = () => {
-  const [selectedCategory, setSelectedCategory] = useState('All')
-  const [sortBy, setSortBy] = useState('Latest')
-  const [searchQuery, setSearchQuery] = useState('')
+  const router = useRouter()
 
-  const filteredGigs = MOCK_GIGS.filter((gig) => {
-    const matchesCategory = selectedCategory === 'All' || gig.category === selectedCategory
-    const matchesSearch = gig.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         gig.description.toLowerCase().includes(searchQuery.toLowerCase())
-    return matchesCategory && matchesSearch
+  // Filters are only meaningful once we've read the initial values out of
+  // the URL (router.query is empty on the very first render). Everything
+  // downstream waits on `hydrated` so we never briefly show/fetch the
+  // defaults and then jump to the real URL-driven state.
+  const [hydrated, setHydrated] = useState(false)
+  const [category, setCategory] = useState('All')
+  const [sort, setSort] = useState<GigSort>('latest')
+  const [searchInput, setSearchInput] = useState('')
+
+  useEffect(() => {
+    if (!router.isReady || hydrated) return
+
+    const queryCategory = readQueryParam(router.query.category)
+    const querySort = readQueryParam(router.query.sort)
+    const querySearch = readQueryParam(router.query.q)
+
+    if (CATEGORIES.includes(queryCategory)) setCategory(queryCategory)
+    if (isGigSort(querySort)) setSort(querySort)
+    if (querySearch) setSearchInput(querySearch)
+
+    setHydrated(true)
+    // Only run this once, right after the router has the real query.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [router.isReady, hydrated])
+
+  const debouncedSearch = useDebouncedValue(searchInput, 300)
+
+  // Keep the URL in sync with filter state so refresh and back/forward
+  // restore exactly what the user had selected. Shallow + replace: this is
+  // filter state, not new pages, so it shouldn't spam browser history.
+  useEffect(() => {
+    if (!hydrated) return
+
+    const query: Record<string, string> = {}
+    if (category !== 'All') query.category = category
+    if (sort !== 'latest') query.sort = sort
+    if (debouncedSearch.trim()) query.q = debouncedSearch.trim()
+
+    router.replace({ pathname: '/explore', query }, undefined, { shallow: true })
+    // router is stable across renders in Next's pages router; omitting it
+    // avoids re-running this on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hydrated, category, sort, debouncedSearch])
+
+  const filters = useMemo(
+    () => ({ category, search: debouncedSearch, sort }),
+    [category, debouncedSearch, sort],
+  )
+
+  const { items, status, error, hasMore, total, fetchNextPage } = useGigsExplorer(filters)
+
+  const scrollParentRef = useRef<HTMLDivElement>(null)
+  const virtualizer = useVirtualizer({
+    count: items.length,
+    getScrollElement: () => scrollParentRef.current,
+    estimateSize: () => ROW_HEIGHT_PX,
+    overscan: 6,
   })
+
+  const virtualItems = virtualizer.getVirtualItems()
+
+  // Infinite scroll: once the windowed list has rendered close to the end
+  // of what we've loaded, ask for the next cursor page.
+  useEffect(() => {
+    const lastItem = virtualItems[virtualItems.length - 1]
+    if (!lastItem) return
+    if (lastItem.index >= items.length - LOAD_MORE_THRESHOLD && hasMore && status !== 'loading' && status !== 'loadingMore') {
+      fetchNextPage()
+    }
+  }, [virtualItems, items.length, hasMore, status, fetchNextPage])
+
+  const isInitialLoading = status === 'loading' && items.length === 0
 
   return (
     <>
@@ -95,8 +134,8 @@ const Explore: NextPage = () => {
               <input
                 type="text"
                 placeholder="Search gigs..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
                 className="w-full px-4 py-3 pl-12 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
               <svg
@@ -113,33 +152,33 @@ const Explore: NextPage = () => {
             <div className="flex flex-col sm:flex-row gap-4">
               {/* Categories */}
               <div className="flex-1 flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-                {CATEGORIES.map((category) => (
+                {CATEGORIES.map((c) => (
                   <button
-                    key={category}
-                    onClick={() => setSelectedCategory(category)}
+                    key={c}
+                    onClick={() => setCategory(c)}
                     className={`
                       px-4 py-2 rounded-lg font-medium text-sm whitespace-nowrap transition-colors
                       ${
-                        selectedCategory === category
+                        category === c
                           ? 'bg-indigo-600 text-white'
                           : 'bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-700 hover:border-indigo-500 dark:hover:border-indigo-500'
                       }
                     `}
                   >
-                    {category}
+                    {c}
                   </button>
                 ))}
               </div>
 
               {/* Sort dropdown */}
               <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
+                value={sort}
+                onChange={(e) => setSort(e.target.value as GigSort)}
                 className="px-4 py-2 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
               >
                 {SORT_OPTIONS.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
+                  <option key={option.value} value={option.value}>
+                    {option.label}
                   </option>
                 ))}
               </select>
@@ -148,65 +187,16 @@ const Explore: NextPage = () => {
 
           {/* Results count */}
           <div className="mb-4 text-sm text-gray-600 dark:text-gray-400">
-            {filteredGigs.length} {filteredGigs.length === 1 ? 'gig' : 'gigs'} found
+            {isInitialLoading ? 'Loading gigs…' : `${total} ${total === 1 ? 'gig' : 'gigs'} found`}
           </div>
 
-          {/* Gigs grid */}
-          {filteredGigs.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredGigs.map((gig) => (
-                <div
-                  key={gig.id}
-                  className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-6 hover:shadow-lg hover:border-indigo-300 dark:hover:border-indigo-700 transition-all duration-200 group"
-                >
-                  {/* Category badge */}
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-xs px-2 py-1 rounded-full bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-medium">
-                      {gig.category}
-                    </span>
-                    <span className="text-xs text-gray-500 dark:text-gray-400">
-                      {gig.postedDate}
-                    </span>
-                  </div>
-
-                  {/* Title */}
-                  <h3 className="font-bold text-lg text-gray-900 dark:text-white mb-2 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors line-clamp-2">
-                    {gig.title}
-                  </h3>
-
-                  {/* Description */}
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-4 line-clamp-3">
-                    {gig.description}
-                  </p>
-
-                  {/* Budget and details */}
-                  <div className="flex items-center justify-between mb-4 pb-4 border-b border-gray-200 dark:border-gray-800">
-                    <div>
-                      <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Budget</div>
-                      <div className="font-bold text-gray-900 dark:text-white">{gig.budget}</div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Duration</div>
-                      <div className="text-sm font-medium text-gray-700 dark:text-gray-300">{gig.duration}</div>
-                    </div>
-                  </div>
-
-                  {/* Footer */}
-                  <div className="flex items-center justify-between">
-                    <div className="text-xs text-gray-500 dark:text-gray-400">
-                      {gig.milestones} milestones
-                    </div>
-                    <Link
-                      href={`/gig/${gig.id}`}
-                      className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition-colors"
-                    >
-                      View Details
-                    </Link>
-                  </div>
-                </div>
-              ))}
+          {status === 'error' && (
+            <div className="mb-4 rounded-lg border border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-950 px-4 py-3 text-sm text-red-700 dark:text-red-300">
+              {error}
             </div>
-          ) : (
+          )}
+
+          {!isInitialLoading && items.length === 0 ? (
             /* Empty state */
             <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-12 text-center">
               <div className="text-6xl mb-4">🔍</div>
@@ -216,34 +206,103 @@ const Explore: NextPage = () => {
               </p>
               <button
                 onClick={() => {
-                  setSelectedCategory('All')
-                  setSearchQuery('')
+                  setCategory('All')
+                  setSearchInput('')
                 }}
                 className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg transition-colors"
               >
                 Clear Filters
               </button>
             </div>
-          )}
+          ) : (
+            /* Virtualized, infinite-scrolling gig list */
+            <div
+              ref={scrollParentRef}
+              style={{ height: LIST_HEIGHT_PX, overflowY: 'auto' }}
+              className="rounded-xl"
+            >
+              <div
+                style={{
+                  height: virtualizer.getTotalSize(),
+                  width: '100%',
+                  position: 'relative',
+                }}
+              >
+                {virtualItems.map((virtualRow) => {
+                  const gig = items[virtualRow.index]
+                  if (!gig) return null
 
-          {/* Pagination */}
-          {filteredGigs.length > 0 && (
-            <div className="mt-8 flex justify-center items-center gap-2">
-              <button className="px-4 py-2 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
-                Previous
-              </button>
-              <button className="px-4 py-2 bg-indigo-600 text-white rounded-lg font-medium">
-                1
-              </button>
-              <button className="px-4 py-2 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800">
-                2
-              </button>
-              <button className="px-4 py-2 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800">
-                3
-              </button>
-              <button className="px-4 py-2 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800">
-                Next
-              </button>
+                  return (
+                    <div
+                      key={gig.id}
+                      data-index={virtualRow.index}
+                      style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        height: virtualRow.size,
+                        transform: `translateY(${virtualRow.start}px)`,
+                        paddingBottom: '1rem',
+                      }}
+                    >
+                      <div className="h-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-6 hover:shadow-lg hover:border-indigo-300 dark:hover:border-indigo-700 transition-all duration-200 group flex flex-col justify-between">
+                        <div>
+                          {/* Category badge */}
+                          <div className="flex items-center justify-between mb-3">
+                            <span className="text-xs px-2 py-1 rounded-full bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-medium">
+                              {gig.category}
+                            </span>
+                            <span className="text-xs text-gray-500 dark:text-gray-400">
+                              {new Date(gig.postedAt).toLocaleDateString()}
+                            </span>
+                          </div>
+
+                          {/* Title */}
+                          <h3 className="font-bold text-lg text-gray-900 dark:text-white mb-2 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors line-clamp-1">
+                            {gig.title}
+                          </h3>
+
+                          {/* Description */}
+                          <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2">
+                            {gig.description}
+                          </p>
+                        </div>
+
+                        {/* Footer */}
+                        <div className="flex items-center justify-between pt-4 mt-4 border-t border-gray-200 dark:border-gray-800">
+                          <div className="flex gap-6">
+                            <div>
+                              <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Budget</div>
+                              <div className="font-bold text-gray-900 dark:text-white">{gig.budgetXLM.toLocaleString()} XLM</div>
+                            </div>
+                            <div>
+                              <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Duration</div>
+                              <div className="text-sm font-medium text-gray-700 dark:text-gray-300">{gig.durationDays} days</div>
+                            </div>
+                            <div>
+                              <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Milestones</div>
+                              <div className="text-sm font-medium text-gray-700 dark:text-gray-300">{gig.milestones}</div>
+                            </div>
+                          </div>
+                          <Link
+                            href={`/gig/${gig.id}`}
+                            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition-colors"
+                          >
+                            View Details
+                          </Link>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+
+              {status === 'loadingMore' && (
+                <div className="py-4 text-center text-sm text-gray-500 dark:text-gray-400">
+                  Loading more gigs…
+                </div>
+              )}
             </div>
           )}
         </main>
