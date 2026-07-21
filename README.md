@@ -104,7 +104,8 @@ Key variables:
 ```env
 NEXT_PUBLIC_STELLAR_NETWORK=TESTNET
 NEXT_PUBLIC_SOROBAN_RPC_URL=https://soroban-testnet.stellar.org
-NEXT_PUBLIC_ESCROW_CONTRACT_ID=your-contract-id
+NEXT_PUBLIC_ESCROW_CONTRACT_ID=your-escrow-contract-id
+NEXT_PUBLIC_DISPUTE_CONTRACT_ID=your-dispute-contract-id
 ```
 
 ### Running
