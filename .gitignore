@@ -47,3 +47,4 @@ yarn-error.log*
 *.sublime-workspace
 
 # Local scripts output
+fix.md
