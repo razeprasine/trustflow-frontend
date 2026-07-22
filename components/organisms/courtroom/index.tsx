@@ -1,4 +1,5 @@
-import type { Dispute, DisputeStatus, Evidence as EvidenceType } from '../../../shared/types/dispute'
+import type { Dispute, DisputeStatus } from '../../../shared/types/dispute'
+import { EvidenceViewer, EvidenceSubmission, JurorVotePanel, VoteTally } from '../../molecules'
 
 interface CourtroomProps {
   dispute: Dispute
@@ -44,57 +45,6 @@ function Section({ title, children }: { title: string; children: React.ReactNode
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{title}</h2>
       </div>
       <div className="p-6">{children}</div>
-    </div>
-  )
-}
-
-function EvidenceRow({ evidence }: { evidence: EvidenceType }) {
-  const icon = evidence.mimeType.startsWith('image/')
-    ? '🖼️'
-    : evidence.mimeType === 'application/pdf'
-    ? '📄'
-    : evidence.mimeType.startsWith('text/')
-    ? '📝'
-    : '📎'
-
-  const statusColor = evidence.status === 'approved'
-    ? 'text-green-600 dark:text-green-400'
-    : evidence.status === 'rejected'
-    ? 'text-red-600 dark:text-red-400'
-    : 'text-yellow-600 dark:text-yellow-400'
-
-  return (
-    <div className="flex items-start gap-3 py-3 first:pt-0 last:pb-0 border-b border-gray-100 dark:border-gray-800 last:border-0">
-      <span className="text-xl flex-shrink-0 mt-0.5">{icon}</span>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-gray-900 dark:text-white truncate">
-            {evidence.fileName}
-          </span>
-          <span className={`text-xs font-medium capitalize ${statusColor}`}>
-            {evidence.status}
-          </span>
-        </div>
-        {evidence.description && (
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{evidence.description}</p>
-        )}
-        <div className="flex items-center gap-3 mt-1">
-          <span className="text-xs text-gray-400 dark:text-gray-500 font-mono">
-            CID: {evidence.cid.slice(0, 8)}…{evidence.cid.slice(-6)}
-          </span>
-          <span className="text-xs text-gray-400 dark:text-gray-500">
-            {(evidence.fileSize / 1024).toFixed(1)} KB
-          </span>
-          <a
-            href={`https://ipfs.io/ipfs/${evidence.cid}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline font-medium"
-          >
-            View on IPFS ↗
-          </a>
-        </div>
-      </div>
     </div>
   )
 }
@@ -168,11 +118,18 @@ export function Courtroom({ dispute }: CourtroomProps) {
         <PartyCard label="Defendant" name={dispute.defendantName} address={dispute.defendantAddress} />
       </div>
 
-      {dispute.evidence.length > 0 && (
-        <Section title={`Evidence (${dispute.evidence.length})`}>
-          {dispute.evidence.map(ev => (
-            <EvidenceRow key={ev.id} evidence={ev} />
-          ))}
+      <Section title={`Evidence (${dispute.evidence.length})`}>
+        <EvidenceViewer evidence={dispute.evidence} />
+      </Section>
+
+      {(dispute.status === 'active' || dispute.status === 'pending') && (
+        <Section title="Submit Evidence">
+          <EvidenceSubmission
+            disputeId={dispute.id}
+            onEvidenceSubmitted={(ev) => {
+              console.log('Evidence submitted:', ev)
+            }}
+          />
         </Section>
       )}
 
@@ -245,20 +202,20 @@ export function Courtroom({ dispute }: CourtroomProps) {
 
       {dispute.status === 'voting' && selectedJurors.length > 0 && (
         <Section title="Your Vote">
-          <div className="text-center py-4">
-            <div className="text-4xl mb-3">🗳️</div>
-            <div className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-              You have been selected as a juror for this case. Review all evidence before casting your vote.
-            </div>
-            <div className="flex justify-center gap-3">
-              <button
-                type="button"
-                className="px-6 py-2.5 rounded-lg bg-indigo-600 text-white font-medium text-sm hover:bg-indigo-700 transition-colors"
-              >
-                Cast Vote
-              </button>
-            </div>
-          </div>
+          <JurorVotePanel
+            disputeId={dispute.id}
+            hasVoted={false}
+          />
+        </Section>
+      )}
+
+      {(dispute.status === 'voting' || dispute.status === 'resolved') && dispute.votes.length > 0 && (
+        <Section title="Vote Tally">
+          <VoteTally
+            votes={dispute.votes}
+            jurors={dispute.jurors}
+            totalJurors={dispute.jurors.length}
+          />
         </Section>
       )}
     </div>

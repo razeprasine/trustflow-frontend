@@ -1,47 +1,50 @@
 name: CI
 
 on:
-  push:
-    branches: [main]
   pull_request:
     branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '18'
 
 jobs:
-  lint-and-build:
+  lint-typecheck-build:
+    name: Lint, Typecheck & Build
     runs-on: ubuntu-latest
 
-    strategy:
-      matrix:
-        node-version: [18, 20]
-
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node.js ${{ matrix.node-version }}
+      - name: Setup Node.js ${{ env.NODE_VERSION }}
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ matrix.node-version }}
-          cache: 'npm'
+          node-version: ${{ env.NODE_VERSION }}
 
-      - name: Cache node_modules
-        id: cache-node-modules
+      - name: Cache npm dependencies
         uses: actions/cache@v4
+        id: npm-cache
         with:
-          path: node_modules
-          key: node-modules-${{ runner.os }}-node${{ matrix.node-version }}-${{ hashFiles('package-lock.json') }}
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ env.NODE_VERSION }}-${{ hashFiles('package-lock.json') }}
           restore-keys: |
-            node-modules-${{ runner.os }}-node${{ matrix.node-version }}-
+            ${{ runner.os }}-node-${{ env.NODE_VERSION }}-
 
       - name: Install dependencies
-        if: steps.cache-node-modules.outputs.cache-hit != 'true'
-        run: npm ci
+        run: npm ci --prefer-offline
+        if: steps.npm-cache.outputs.cache-hit != 'true'
 
-      - name: Run linter
-        run: npm run lint
-
-      - name: Run type check
+      - name: TypeScript type check
         run: npm run typecheck
 
-      - name: Build project
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
         run: npm run build
