@@ -104,7 +104,8 @@ Key variables:
 ```env
 NEXT_PUBLIC_STELLAR_NETWORK=TESTNET
 NEXT_PUBLIC_SOROBAN_RPC_URL=https://soroban-testnet.stellar.org
-NEXT_PUBLIC_ESCROW_CONTRACT_ID=your-contract-id
+NEXT_PUBLIC_ESCROW_CONTRACT_ID=your-escrow-contract-id
+NEXT_PUBLIC_DISPUTE_CONTRACT_ID=your-dispute-contract-id
 ```
 
 ### Running
@@ -183,6 +184,28 @@ Full page sections wired to on-chain data.
 - The profile page fetches reputation, bio, and past gigs from `GET /api/profile`, which proxies to `PROFILE_API_BASE_URL` when configured and falls back to typed mock data for local/dev environments.
 - No new runtime dependencies were added for this feature.
 
+### Contract Bindings Codegen
+
+TrustFlow uses a codegen pipeline to generate fully typed TypeScript client bindings from Soroban contract specs. This ensures all frontend contract calls are compile-time checked and stay in sync with the contract interface.
+
+**How it works:**
+
+1. Contract specs are defined as JSON files in `shared/contracts-raw/`
+2. Running `npm run codegen` generates TypeScript bindings in `shared/contracts-gen/`
+3. The `npm run build` and `npm run dev` commands automatically run codegen
+
+**Adding a new contract:**
+
+1. Create a spec file: `shared/contracts-raw/mycontract.spec.json`
+2. Run `npm run codegen`
+3. Import the generated client: `import { createMycontractContract } from '../shared/contracts-gen'`
+
+**Generated files:**
+
+- `shared/contracts-gen/escrow.ts` — Escrow contract types and client
+- `shared/contracts-gen/dispute.ts` — Dispute contract types and client
+- `shared/contracts-gen/index.ts` — Barrel export
+
 ---
 
 ## 🛡️ Security
@@ -204,11 +227,11 @@ Full page sections wired to on-chain data.
 - [x] Gig explorer with search and filtering
 - [x] Multi-step gig creation wizard
 - [x] Responsive mobile-first design
+- [x] **Type-Safe Contract Bindings**: Codegen pipeline for compile-time checked contract calls
 
 ### 🚧 In Progress
 
 - [ ] **Wallet Integration (#21)**: Full Freighter API integration
-- [ ] **Escrow SDK (#16)**: Connect gig creation to smart contracts
 - [ ] **Profile Pages (#10)**: On-chain reputation and work history viewer
 
 ### 📋 Planned

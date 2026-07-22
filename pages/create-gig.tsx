@@ -1,8 +1,11 @@
 import { useState } from 'react'
 import type { NextPage } from 'next'
 import Head from 'next/head'
+import { useRouter } from 'next/router'
 import { Navbar } from '../components/organisms'
 import { useGlobalToast } from './_app'
+import { useWallet } from '../hooks'
+import { createGigEscrow, isValidStellarAddress } from '../shared/escrow-contract'
 
 interface Milestone {
   id: string
@@ -17,6 +20,8 @@ interface FormData {
   description: string
   category: string
   totalBudget: string
+  /** The freelancer's Stellar address; the escrow contract requires a beneficiary up front. */
+  beneficiaryAddress: string
   milestones: Milestone[]
 }
 
@@ -31,10 +36,14 @@ const CreateGig: NextPage = () => {
     description: '',
     category: 'Development',
     totalBudget: '',
+    beneficiaryAddress: '',
     milestones: [{ id: '1', title: '', description: '', amount: '', duration: '' }],
   })
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const toast = useGlobalToast()
+  const router = useRouter()
+  const { account, signTransaction } = useWallet()
 
   const addMilestone = () => {
     setFormData({
@@ -73,6 +82,11 @@ const CreateGig: NextPage = () => {
       if (!formData.totalBudget || Number(formData.totalBudget) <= 0) {
         newErrors.totalBudget = 'Valid budget is required'
       }
+      if (!formData.beneficiaryAddress.trim()) {
+        newErrors.beneficiaryAddress = "Freelancer's wallet address is required"
+      } else if (!isValidStellarAddress(formData.beneficiaryAddress.trim())) {
+        newErrors.beneficiaryAddress = 'Enter a valid Stellar address (starts with G)'
+      }
     }
 
     if (currentStep === 1) {
@@ -98,11 +112,35 @@ const CreateGig: NextPage = () => {
     setCurrentStep((prev) => Math.max(prev - 1, 0))
   }
 
-  const handleSubmit = () => {
-    if (validateStep()) {
-      toast.success('Gig created successfully!')
-      console.log('Gig data:', formData)
-      // Here you would integrate with smart contract
+  const handleSubmit = async () => {
+    if (!validateStep()) return
+
+    if (!account) {
+      toast.error('Connect your Stellar wallet before creating a gig')
+      return
+    }
+
+    setIsSubmitting(true)
+    try {
+      const { escrowId } = await createGigEscrow(
+        {
+          depositor: account.address,
+          beneficiary: formData.beneficiaryAddress.trim(),
+          milestones: formData.milestones.map((m) => ({
+            label: m.title,
+            amount: m.amount,
+          })),
+        },
+        signTransaction
+      )
+
+      toast.success(`Gig created and escrow #${escrowId} funded successfully!`)
+      router.push('/dashboard')
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to create gig escrow'
+      toast.error(message)
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -244,6 +282,28 @@ const CreateGig: NextPage = () => {
                     {errors.totalBudget && <p className="text-red-500 text-sm mt-1">{errors.totalBudget}</p>}
                   </div>
                 </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Freelancer&apos;s Wallet Address *
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.beneficiaryAddress}
+                    onChange={(e) => setFormData({ ...formData, beneficiaryAddress: e.target.value })}
+                    placeholder="G..."
+                    className={`w-full px-4 py-3 bg-white dark:bg-gray-800 border rounded-lg text-gray-900 dark:text-white font-mono text-sm ${
+                      errors.beneficiaryAddress ? 'border-red-500' : 'border-gray-300 dark:border-gray-700'
+                    }`}
+                  />
+                  <p className="text-gray-500 dark:text-gray-500 text-xs mt-1">
+                    The escrow contract locks funds for a specific freelancer up front. Enter the Stellar
+                    address of the freelancer you&apos;re hiring for this gig.
+                  </p>
+                  {errors.beneficiaryAddress && (
+                    <p className="text-red-500 text-sm mt-1">{errors.beneficiaryAddress}</p>
+                  )}
+                </div>
               </div>
             )}
 
@@ -360,6 +420,12 @@ const CreateGig: NextPage = () => {
                       <span className="text-gray-600 dark:text-gray-400">Milestones:</span>
                       <span className="font-medium text-gray-900 dark:text-white">{formData.milestones.length}</span>
                     </div>
+                    <div className="flex justify-between gap-4">
+                      <span className="text-gray-600 dark:text-gray-400 shrink-0">Freelancer:</span>
+                      <span className="font-medium text-gray-900 dark:text-white font-mono text-xs break-all text-right">
+                        {formData.beneficiaryAddress}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
@@ -422,9 +488,10 @@ const CreateGig: NextPage = () => {
               ) : (
                 <button
                   onClick={handleSubmit}
-                  className="px-6 py-2.5 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors"
+                  disabled={isSubmitting}
+                  className="px-6 py-2.5 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Create Gig
+                  {isSubmitting ? 'Creating Escrow…' : 'Create Gig'}
                 </button>
               )}
             </div>

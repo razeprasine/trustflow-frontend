@@ -10,6 +10,16 @@
     "openMenu": "Open menu",
     "closeMenu": "Close menu"
   },
+  "Wallet": {
+    "switchAccount": "Switch account",
+    "disconnect": "Disconnect",
+    "network": "Network",
+    "testnet": "Testnet",
+    "mainnet": "Mainnet",
+    "futurenet": "Futurenet",
+    "connecting": "Checking wallet…",
+    "notConnected": "Not connected"
+  },
   "LocaleSwitcher": {
     "label": "Language",
     "en": "English",

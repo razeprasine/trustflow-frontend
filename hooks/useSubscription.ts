@@ -3,8 +3,9 @@ import * as React from 'react'
 /**
  * Placeholder subscription hook.
  *
- * When the Soroban RPC integration is wired up, replace the body of this hook
- * with real event polling against the network configured in shared/contracts.ts.
+ * @deprecated Superseded by `useContractEvents`, which implements real Soroban
+ * RPC event polling with dedup and cache hydration. Kept for back-compat with
+ * any existing callers; prefer `useContractEvents` for new code.
  */
 export function useSubscription(
   _contractId: string,

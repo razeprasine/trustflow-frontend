@@ -10,6 +10,16 @@
     "openMenu": "Abrir menú",
     "closeMenu": "Cerrar menú"
   },
+  "Wallet": {
+    "switchAccount": "Cambiar cuenta",
+    "disconnect": "Desconectar",
+    "network": "Red",
+    "testnet": "Testnet",
+    "mainnet": "Mainnet",
+    "futurenet": "Futurenet",
+    "connecting": "Verificando billetera…",
+    "notConnected": "No conectado"
+  },
   "LocaleSwitcher": {
     "label": "Idioma",
     "en": "English",

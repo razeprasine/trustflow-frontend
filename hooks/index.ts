@@ -1,4 +1,9 @@
 export * from "./useAccount";
+export * from "./useDebouncedValue";
+export * from "./useEscrowContract";
+export * from "./useDisputeContract";
+export * from "./useGigsExplorer";
+export * from "./useWallet";
 export * from "./useIsMounted";
 export * from './useSubscription';
 export * from './useUSDCPrice';
@@ -6,3 +11,4 @@ export * from './useUserProfile';
 export * from './useDisputes';
 export * from './useDispute';
 export * from './useVoting';
+export * from "./useContractEvents";

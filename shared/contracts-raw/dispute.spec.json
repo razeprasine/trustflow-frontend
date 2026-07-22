@@ -1,0 +1,103 @@
+{
+  "contract": "dispute",
+  "address_env": "NEXT_PUBLIC_DISPUTE_CONTRACT_ID",
+  "methods": {
+    "open_dispute": {
+      "description": "Open a dispute for a gig milestone",
+      "args": {
+        "gig_id": { "type": "BytesN<32>" },
+        "milestone_index": { "type": "U32" },
+        "reason": { "type": "String" }
+      },
+      "result": { "type": "Void" },
+      "event": "dispute_opened"
+    },
+    "submit_evidence": {
+      "description": "Submit evidence for a dispute",
+      "args": {
+        "dispute_id": { "type": "BytesN<32>" },
+        "evidence_uri": { "type": "String" }
+      },
+      "result": { "type": "Void" },
+      "event": "evidence_submitted"
+    },
+    "vote": {
+      "description": "Cast a juror vote on a dispute",
+      "args": {
+        "dispute_id": { "type": "BytesN<32>" },
+        "in_favor": { "type": "Bool" }
+      },
+      "result": { "type": "Void" },
+      "event": "vote_cast"
+    },
+    "resolve": {
+      "description": "Resolve a dispute and execute the outcome",
+      "args": {
+        "dispute_id": { "type": "BytesN<32>" }
+      },
+      "result": { "type": "DisputeOutcome" },
+      "event": "dispute_resolved"
+    },
+    "get_dispute": {
+      "description": "Get dispute details",
+      "args": {
+        "dispute_id": { "type": "BytesN<32>" }
+      },
+      "result": { "type": "Dispute" }
+    }
+  },
+  "types": {
+    "Dispute": {
+      "fields": {
+        "id": { "type": "BytesN<32>" },
+        "gig_id": { "type": "BytesN<32>" },
+        "milestone_index": { "type": "U32" },
+        "opener": { "type": "Address" },
+        "reason": { "type": "String" },
+        "status": { "type": "DisputeStatus" },
+        "votes_for": { "type": "U32" },
+        "votes_against": { "type": "U32" },
+        "created_at": { "type": "U64" },
+        "resolved_at": { "type": "Option<U64>" }
+      }
+    },
+    "DisputeStatus": {
+      "variants": ["Open", "Voting", "Resolved", "Executed"]
+    },
+    "DisputeOutcome": {
+      "variants": ["FreelancerWins", "ClientWins", "Split"]
+    }
+  },
+  "events": {
+    "dispute_opened": {
+      "topics": ["dispute_opened", "gig_id"],
+      "data": {
+        "dispute_id": { "type": "BytesN<32>" },
+        "opener": { "type": "Address" },
+        "reason": { "type": "String" }
+      }
+    },
+    "evidence_submitted": {
+      "topics": ["evidence_submitted", "dispute_id"],
+      "data": {
+        "submitter": { "type": "Address" },
+        "evidence_uri": { "type": "String" }
+      }
+    },
+    "vote_cast": {
+      "topics": ["vote_cast", "dispute_id"],
+      "data": {
+        "voter": { "type": "Address" },
+        "in_favor": { "type": "Bool" }
+      }
+    },
+    "dispute_resolved": {
+      "topics": ["dispute_resolved", "dispute_id"],
+      "data": {
+        "outcome": { "type": "DisputeOutcome" },
+        "votes_for": { "type": "U32" },
+        "votes_against": { "type": "U32" }
+      }
+    }
+  }
+}
