@@ -1,11 +1,28 @@
 import moment from 'moment'
 import { useContractEvents } from '../../../hooks'
 import { DISPUTE_CONTRACT_ID, ESCROW_CONTRACT_ID } from '../../../shared/contracts'
-import type { ContractEvent } from '../../../shared/contract-events/types'
+import type { ContractEvent, EscrowEvent, DisputeEvent } from '../../../shared/contract-events/types'
 
 function eventTitle(event: ContractEvent): string {
   const topLevel = event.topic[0]
   return typeof topLevel === 'string' ? topLevel : `${event.source} event`
+}
+
+function formatEventData(event: ContractEvent): string {
+  if (!event.data || typeof event.data !== 'object') return ''
+
+  const data = event.data as Record<string, unknown>
+
+  if (event.source === 'escrow') {
+    if ('amount' in data) return `${data.amount} tokens`
+    if ('freelancer' in data) return `to ${data.freelancer}`
+  }
+  if (event.source === 'dispute') {
+    if ('reason' in data) return String(data.reason)
+    if ('evidence_uri' in data) return String(data.evidence_uri)
+    if ('outcome' in data) return String(data.outcome)
+  }
+  return ''
 }
 
 function truncate(value: string, size = 6): string {
@@ -67,6 +84,9 @@ export function DisputeEventFeed() {
             <li key={event.id} className="p-4 flex items-start justify-between gap-3">
               <div>
                 <p className="font-medium text-gray-900 dark:text-white capitalize">{eventTitle(event)}</p>
+                {formatEventData(event) && (
+                  <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">{formatEventData(event)}</p>
+                )}
                 <p className="text-xs text-gray-500 dark:text-gray-400">
                   <span className="uppercase">{event.source}</span> · ledger {event.ledger} · tx {truncate(event.txHash)}
                 </p>

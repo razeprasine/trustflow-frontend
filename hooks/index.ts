@@ -1,5 +1,7 @@
 export * from "./useAccount";
 export * from "./useDebouncedValue";
+export * from "./useEscrowContract";
+export * from "./useDisputeContract";
 export * from "./useGigsExplorer";
 export * from "./useWallet";
 export * from "./useIsMounted";

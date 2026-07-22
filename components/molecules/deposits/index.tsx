@@ -1,10 +1,13 @@
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import { Spacer } from '../../atoms/spacer'
 import { Utils } from '../../../shared/utils'
+import { useEscrowContract } from '../../../hooks'
 
 export interface IDepositsProps {
   address: string
   decimals: number
+  gigId?: Buffer
+  milestoneIndex?: number
   name?: string
   symbol?: string
 }
@@ -12,12 +15,18 @@ export interface IDepositsProps {
 /**
  * Deposits — shows the user's escrowed balance.
  *
- * TODO: fetch real balance from the TrustFlow contract once RPC integration
- * is wired up in shared/contracts.ts.
+ * Fetches real balance from the escrow contract when configured.
+ * Falls back to zero if contract is not available.
  */
 export function Deposits(props: IDepositsProps) {
-  // Placeholder — will be replaced with contract call
-  const balance = BigInt(0)
+  const [balance, setBalance] = useState<bigint>(BigInt(0))
+  const escrow = useEscrowContract()
+
+  useEffect(() => {
+    if (!escrow.isReady || !props.gigId || props.milestoneIndex === undefined) return
+
+    escrow.getBalance(props.gigId, props.milestoneIndex).then(setBalance).catch(() => {})
+  }, [escrow, props.gigId, props.milestoneIndex])
 
   if (Number(balance) <= 0) {
     return <React.Fragment />

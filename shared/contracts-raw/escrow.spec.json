@@ -1,0 +1,93 @@
+{
+  "contract": "escrow",
+  "address_env": "NEXT_PUBLIC_ESCROW_CONTRACT_ID",
+  "methods": {
+    "deposit": {
+      "description": "Deposit funds into escrow for a gig milestone",
+      "args": {
+        "gig_id": { "type": "BytesN<32>" },
+        "milestone_index": { "type": "U32" },
+        "token": { "type": "Address" },
+        "amount": { "type": "I128" }
+      },
+      "result": { "type": "Void" },
+      "event": "deposited"
+    },
+    "release": {
+      "description": "Release escrowed funds to the freelancer",
+      "args": {
+        "gig_id": { "type": "BytesN<32>" },
+        "milestone_index": { "type": "U32" }
+      },
+      "result": { "type": "Void" },
+      "event": "released"
+    },
+    "refund": {
+      "description": "Refund escrowed funds to the client",
+      "args": {
+        "gig_id": { "type": "BytesN<32>" },
+        "milestone_index": { "type": "U32" }
+      },
+      "result": { "type": "Void" },
+      "event": "refunded"
+    },
+    "get_balance": {
+      "description": "Get the escrowed balance for a milestone",
+      "args": {
+        "gig_id": { "type": "BytesN<32>" },
+        "milestone_index": { "type": "U32" }
+      },
+      "result": { "type": "I128" }
+    },
+    "get_gig_milestones": {
+      "description": "Get all milestones for a gig",
+      "args": {
+        "gig_id": { "type": "BytesN<32>" }
+      },
+      "result": {
+        "type": "Vec<Milestone>"
+      }
+    }
+  },
+  "types": {
+    "Milestone": {
+      "fields": {
+        "index": { "type": "U32" },
+        "amount": { "type": "I128" },
+        "token": { "type": "Address" },
+        "status": { "type": "MilestoneStatus" },
+        "freelancer": { "type": "Address" }
+      }
+    },
+    "MilestoneStatus": {
+      "variants": ["Pending", "Funded", "Completed", "Released", "Disputed", "Refunded"]
+    }
+  },
+  "events": {
+    "deposited": {
+      "topics": ["deposited", "gig_id"],
+      "data": {
+        "milestone_index": { "type": "U32" },
+        "token": { "type": "Address" },
+        "amount": { "type": "I128" },
+        "depositor": { "type": "Address" }
+      }
+    },
+    "released": {
+      "topics": ["released", "gig_id"],
+      "data": {
+        "milestone_index": { "type": "U32" },
+        "freelancer": { "type": "Address" },
+        "amount": { "type": "I128" }
+      }
+    },
+    "refunded": {
+      "topics": ["refunded", "gig_id"],
+      "data": {
+        "milestone_index": { "type": "U32" },
+        "client": { "type": "Address" },
+        "amount": { "type": "I128" }
+      }
+    }
+  }
+}
