@@ -4,6 +4,7 @@ import {
   getUserInfo,
   getNetworkDetails,
   isAllowed,
+  signTransaction as freighterSignTransaction,
 } from "@stellar/freighter-api";
 
 export interface AccountInfo {
@@ -32,6 +33,8 @@ export interface WalletState {
   connect: () => Promise<void>;
   /** Clear the local connection state so the UI prompts to connect again */
   disconnect: () => void;
+  /** Requests a Freighter signature for a transaction XDR envelope, returning the signed XDR */
+  signTransaction: (xdr: string) => Promise<string>;
 }
 
 /**
@@ -151,6 +154,20 @@ export function useWallet(): WalletState {
     setError(null);
   }, []);
 
+  const signTransaction = useCallback(
+    async (xdr: string): Promise<string> => {
+      if (!account) {
+        throw new Error("Connect a wallet before signing a transaction");
+      }
+
+      return freighterSignTransaction(xdr, {
+        networkPassphrase: network?.networkPassphrase,
+        accountToSign: account.address,
+      });
+    },
+    [account, network]
+  );
+
   return {
     account,
     network,
@@ -159,5 +176,6 @@ export function useWallet(): WalletState {
     error,
     connect,
     disconnect,
+    signTransaction,
   };
 }
