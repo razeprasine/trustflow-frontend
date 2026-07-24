@@ -48,3 +48,6 @@ yarn-error.log*
 
 # Local scripts output
 fix.md
+
+# Auto-generated contract bindings (regenerated via npm run codegen)
+/shared/contracts-gen

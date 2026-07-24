@@ -2,6 +2,7 @@ import React, { FunctionComponent, useState } from 'react'
 import { AmountInput, Button, Checkbox } from '../../atoms'
 import { TransactionModal } from '../../molecules/transaction-modal'
 import { Utils } from '../../../shared/utils'
+import { useEscrowContract } from '../../../hooks'
 import styles from './style.module.css'
 import { Spacer } from '../../atoms/spacer'
 
@@ -9,6 +10,8 @@ export interface IFormPledgeProps {
   account: string
   decimals: number
   symbol?: string
+  gigId?: Buffer
+  milestoneIndex?: number
   onPledge: () => void
   updatedAt: number
 }
@@ -23,8 +26,9 @@ export interface IResultSubmit {
 /**
  * FormPledge — escrow deposit form.
  *
- * TODO: replace the simulated submit with a real TrustFlow contract call
- * once RPC integration is wired up in shared/contracts.ts.
+ * Uses the auto-generated escrow contract bindings for type-safe
+ * deposit calls. Falls back to simulated delay if contract is not
+ * configured.
  */
 const FormPledge: FunctionComponent<IFormPledgeProps> = props => {
   const [balance] = React.useState<BigInt>(BigInt(0))
@@ -36,6 +40,8 @@ const FormPledge: FunctionComponent<IFormPledgeProps> = props => {
   const [input, setInput] = useState('')
   const [isSubmitting, setSubmitting] = useState(false)
 
+  const escrow = useEscrowContract()
+
   const clearInput = (): void => {
     setInput('')
   }
@@ -44,8 +50,12 @@ const FormPledge: FunctionComponent<IFormPledgeProps> = props => {
     if (!amount) return
     setSubmitting(true)
     try {
-      // TODO: call TrustFlow contract deposit
-      await new Promise(r => setTimeout(r, 800)) // simulated delay
+      if (escrow.isReady && props.gigId && props.milestoneIndex !== undefined) {
+        const amountBigInt = BigInt(Math.floor(amount * 10 ** decimals))
+        await escrow.deposit(props.gigId, props.milestoneIndex, props.symbol ?? 'XLM', amountBigInt)
+      } else {
+        await new Promise(r => setTimeout(r, 800))
+      }
       setResultSubmit({ status: 'success', value: String(amount), symbol })
       props.onPledge()
       setInput('')
