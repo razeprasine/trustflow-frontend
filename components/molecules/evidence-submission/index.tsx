@@ -10,8 +10,10 @@ export interface EvidenceSubmissionProps {
 export function EvidenceSubmission({ disputeId, onEvidenceSubmitted }: EvidenceSubmissionProps) {
   const [description, setDescription] = useState('')
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([])
+  const [uploadError, setUploadError] = useState<string | null>(null)
 
   const handleUploadComplete = (entry: UploadedFile) => {
+    setUploadError(null)
     setUploadedFiles(prev => [...prev, entry])
     if (entry.cid) {
       onEvidenceSubmitted?.({ cid: entry.cid, fileName: entry.file.name, description })
@@ -20,7 +22,7 @@ export function EvidenceSubmission({ disputeId, onEvidenceSubmitted }: EvidenceS
   }
 
   const handleUploadError = (entry: UploadedFile) => {
-    console.error('Evidence upload failed:', entry.error)
+    setUploadError(entry.error ?? 'Upload failed')
   }
 
   return (
@@ -46,7 +48,29 @@ export function EvidenceSubmission({ disputeId, onEvidenceSubmitted }: EvidenceS
         multiple={false}
       />
 
-      {uploadedFiles.length > 0 && (
+      {uploadError && (
+        <div className="p-3 rounded-lg bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900">
+          <div className="flex items-center gap-2 text-sm text-red-700 dark:text-red-300">
+            <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+            </svg>
+            <span className="font-medium">Upload failed:</span>
+            <span>{uploadError}</span>
+          </div>
+          <p className="mt-1 text-xs text-red-600 dark:text-red-400">
+            You can retry by clicking the &ldquo;Pin&rdquo; button again.
+          </p>
+          <button
+            type="button"
+            onClick={() => setUploadError(null)}
+            className="mt-2 text-xs text-red-600 dark:text-red-400 underline hover:no-underline"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
+      {uploadedFiles.length > 0 && !uploadError && (
         <div className="p-3 rounded-lg bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-900">
           <div className="flex items-center gap-2 text-sm text-green-700 dark:text-green-300">
             <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">

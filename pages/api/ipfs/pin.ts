@@ -49,6 +49,7 @@ export default async function handler(req: NextRequest): Promise<NextResponse> {
     const response = await fetch(`${backendBaseUrl}/ipfs/pin`, {
       method: 'POST',
       body: backendFormData,
+      signal: AbortSignal.timeout(25000),
     })
 
     if (!response.ok) {

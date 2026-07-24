@@ -61,6 +61,9 @@ async function uploadToIpfs(
 
   const xhr = new XMLHttpRequest()
 
+  
+  xhr.timeout = 30000
+
   return new Promise((resolve, reject) => {
     if (signal.aborted) {
       reject(new DOMException('Upload aborted', 'AbortError'))
@@ -88,6 +91,7 @@ async function uploadToIpfs(
 
     xhr.addEventListener('error', () => reject(new Error('Network error during upload')))
     xhr.addEventListener('abort', () => reject(new DOMException('Upload aborted', 'AbortError')))
+    xhr.addEventListener('timeout', () => reject(new Error('Upload timed out after 30s')))
 
     signal.addEventListener('abort', () => xhr.abort())
 
